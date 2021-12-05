@@ -1,0 +1,285 @@
+//IBMUSVS  JOB 1,MSGCLASS=H
+//*********************************************************************
+//*  SAMP:      IKYCVSAM                                              *
+//*                                                                   *
+//*    Licensed Materials - Property of IBM                           *
+//*    5650-ZOS                                                       *
+//*    Copyright IBM Corp. 2001, 2017                                 *
+//*    Status = HKY77B0                                               *
+//*                                                                   *
+//*********************************************************************
+//*                                                                   *
+//*  This sample JCL may be used to create the VSAM data sets         *
+//*  PKI Services utilizes to store certificate requests and          *
+//*  issued certificates.                                             *
+//*                                                                   *
+//*  The VSAM data sets created by this sample utilize the original   *
+//*  data set format employed by PKI Services V2R2 (HKY77A0) and      *
+//*  earlier releases.  For the sample that creates the revised       *
+//*  format for improved tracking of SCEP requests and the            *
+//*  certificates issued for those requests that is available in      *
+//*  PKI Services V2R3 (HKY77B0) and later releases, please see the   *
+//*  IKYCVSV1 sample.                                                 *
+//*                                                                   *
+//*********************************************************************
+//*                                                                   *
+//*  Caution: This is neither a JCL procedure nor a complete job.     *
+//*  Before using this job step, you will have to make the following  *
+//*  modifications:                                                   *
+//*                                                                   *
+//*  1) Change the job card to meet your system requirements.         *
+//*                                                                   *
+//*  2) If you wish to change the data set qualifiers from the        *
+//*     default value change all occurrences of "PKISRVD.VSAM"        *
+//*     to a preferred value. If you choose to modify this value, be  *
+//*     be sure to also modify the sample configuration file          *
+//*     appropriately(/etc/pkiserv/pkiserv.conf). If you are using    *
+//*     multiple CA Domains, IBM recommends using the first eight     *
+//*     characters of the CA Domain as one of the data set            *
+//*     qualifiers.                                                   *
+//*                                                                   *
+//*  3) If you are using VSAM record level sharing (RLS), perform     *
+//*     the following steps:                                          *
+//*                                                                   *
+//*     a) Replace the VOL(USER00) statements in the DEFKSDS step     *
+//*        with STORCLAS(class-name) where class-name is the name of  *
+//*        the storage class defined for VSAM RLS.                    *
+//*                                                                   *
+//*     b) Remove the VOL(USER00) statements from the DEFALTDX step.  *
+//*                                                                   *
+//*     c) Remove all the SPANNED and CISIZE statements.              *
+//*                                                                   *
+//*     If not using VSAM RLS, change all occurrences of vvvvvv to    *
+//*     the VOLSER value appropriate for the system this job is to be *
+//*     run on. Do not remove the SPANNED and CISIZE statements.      *
+//*                                                                   *
+//*                                                                   *
+//*  4) If you wish to change the default userid to own the VSAM      *
+//*     data set, change the OWNER(PKIUSER2) operand to the userid you *
+//*     want to own the data sets. If you choose to modify this value *
+//*     ensure you have modified the sample setup REXX exec (IKYSETUP)*
+//*     to account for this change.                                   *
+//*                                                                   *
+//*  5) If you wish to change either the primary or secondary record  *
+//*     allocation sizes for either the OST or ICL datasets from the  *
+//*     default value, update the RECORDS(50 50) operands on the      *
+//*     DEFINE CLUSTER or DEFINE ALTERNATE INDEX commands.            *
+//*                                                                   *
+//*  **Note, do not change any of the numeric values other than       *
+//*       CYL or TRK                                                  *
+//*-------------------------------------------------------------------*
+//* Change Activity:                                                  *
+//*                                                                   *
+//*    $L1=PKIS3   HKY7707 020314 PDJWS1: VSAM RLS                @L1A*
+//*    $P1=MG00719 HKY7707 020416 PDJWS1: VSAM RLS 2              @P1A*
+//*    $L2=MG01176 HKY7708 020826 PDJWS1: VSAM scaling            @L2A*
+//*    $P2=MG01346 HKY7708 021022 PDJWS1: JCL errors              @P2A*
+//*    $L3=PKIS7   HKY7730 050228 PDTCG1: Multi-CA Support        @L3A*
+//*    $P3=MG06654 HKY7730 051130 PDTCG1: Missing Qualifier       @P3A*
+//*    $P4=MG15386 HKY7780 100927 PDTCG1: Update CISIZE values    @P4A*
+//*    $L4=PKIS23S HKY77B0 170112 PDRRG1: SCEP Usability          @L4A*
+//*                                                                   *
+//* Change Description:                                               *
+//*                                                                   *
+//*    C: Added STORCLAS instructions, LOG. Removed VOLUME DDs    @L1C*
+//*    D: Removed FILE(VOLUME) statements                         @P1A*
+//*    C: Added more alt indexes and changed allocation parms     @L2A*
+//*    C: Removed VOL keywords from ALTERNATEINDEX statements.    @P2A*
+//*       Removed DD statements from BLDINDEX step. Added         @P2A*
+//*       IEBGENER step to remove hardcoded binary zeros          @P2A*
+//*    C: Updated prolog with CA Domain information               @L3A*
+//*    C: Updated DEFALTDX step to use PKISRVD.VSAM.OST.AIX.IX        *
+//*       dataset name instead of the former dataset name of          *
+//*       PKISRVD.VSAM.AIX.IX.                                    @P3A*
+//*    C: Updated CISIZE (CISZ) values on DEFINE CLUSTER              *
+//*       statements to minimize contention.                      @P4A*
+//*    C: Commentary changes.                                     @L4A*
+//*                                                                   *
+//*-------------------------------------------------------------------*
+//*
+//*-------------------------------------------------------------------*
+//* Delete existing clusters, paths, alt indexes
+//*-------------------------------------------------------------------*
+//DELCLUST EXEC PGM=IDCAMS
+//SYSPRINT DD   SYSOUT=*
+//SYSIN    DD   *
+    DELETE -
+        PKISRVD.VSAM.OST -
+        CLUSTER -
+        PURGE -
+        ERASE
+    DELETE -
+        PKISRVD.VSAM.ICL -
+        CLUSTER -
+        PURGE -
+        ERASE
+    IF MAXCC LT 9 THEN SET MAXCC = 0
+/*
+//*-------------------------------------------------------------------*
+//* Define KSDS                                                       *
+//*-------------------------------------------------------------------*
+//DEFKSDS  EXEC PGM=IDCAMS
+//SYSPRINT DD   SYSOUT=*
+//SYSIN    DD   *
+    DEFINE CLUSTER -
+        (NAME(PKISRVD.VSAM.OST) -
+        VOL(USER00) -
+        RECSZ(1024 32756) -
+        INDEXED -
+        NOREUSE -
+        KEYS(4 0) -
+        SHR(2) -
+        CYL(3,1) -
+        LOG(NONE) -
+        OWNER(PKIUSER2) ) -
+      DATA -
+        (NAME(PKISRVD.VSAM.OST.DA) -
+        CISZ(4096) -
+        SPANNED) -
+      INDEX -
+        (NAME(PKISRVD.VSAM.OST.IX))
+
+    DEFINE CLUSTER -
+        (NAME(PKISRVD.VSAM.ICL) -
+        VOL(USER00) -
+        RECSZ(1024 32756) -
+        INDEXED -
+        NOREUSE -
+        KEYS(4 0) -
+        SHR(2) -
+        CYL(3,1) -
+        LOG(NONE) -
+        OWNER(PKIUSER2) ) -
+      DATA -
+        (NAME(PKISRVD.VSAM.ICL.DA) -
+        CISZ(4096) -
+        SPANNED) -
+      INDEX -
+        (NAME(PKISRVD.VSAM.ICL.IX))
+/*
+//*-------------------------------------------------------------------*
+//* Repro record of all binary zeros into KSDS                        *
+//*-------------------------------------------------------------------*
+//MKZEROS  EXEC PGM=IEBGENER
+//SYSPRINT DD   SYSOUT=*
+//SYSUT1   DD   *
+
+//SYSUT2   DD   DSN=&&GENTMP,UNIT=SYSDA,DISP=(,PASS),
+//         DCB=(RECFM=FB,LRECL=80,BLKSIZE=640),SPACE=(TRK,(1,1))
+//SYSIN    DD   *
+ GENERATE MAXFLDS=4,MAXLITS=80
+ RECORD FIELD=(20,X'0000000000000000000000000000000000000000',,1),
+        FIELD=(20,X'0000000000000000000000000000000000000000',,21),
+        FIELD=(20,X'0000000000000000000000000000000000000000',,41),
+        FIELD=(20,X'0000000000000000000000000000000000000000',,61)
+/*
+//REPROKSD EXEC PGM=IDCAMS
+//SYSPRINT DD   SYSOUT=*
+//SYSDATA  DD   DSN=*.MKZEROS.SYSUT2,DISP=(OLD,DELETE)
+//SYSIN    DD   *
+   REPRO INFILE(SYSDATA) -
+      OUTDATASET(PKISRVD.VSAM.OST)
+   REPRO INFILE(SYSDATA) -
+      OUTDATASET(PKISRVD.VSAM.ICL)
+/*
+//*-------------------------------------------------------------------*
+//* Define ALTERNATE INDEX and PATH                                   *
+//*-------------------------------------------------------------------*
+//DEFALTDX EXEC PGM=IDCAMS
+//SYSPRINT DD   SYSOUT=*
+//SYSIN    DD   *
+    DEFINE ALTERNATEINDEX -
+       (NAME(PKISRVD.VSAM.OST.AIX) -
+        RELATE(PKISRVD.VSAM.OST)-
+        VOL(USER00) -
+        TRK(5,1) -
+        KEYS(24 44) ) -
+      DATA -
+        (NAME(PKISRVD.VSAM.OST.AIX.DA)) -
+      INDEX -
+        (NAME(PKISRVD.VSAM.OST.AIX.IX))
+    DEFINE PATH -
+        (NAME(PKISRVD.VSAM.OST.PATH) -
+         PATHENTRY(PKISRVD.VSAM.OST.AIX))
+    DEFINE ALTERNATEINDEX -
+       (NAME(PKISRVD.VSAM.OST.STATAIX) -
+        RELATE(PKISRVD.VSAM.OST)-
+        VOL(USER00) -
+        TRK(5,1) -
+        KEYS(40 4) ) -
+      DATA -
+        (NAME(PKISRVD.VSAM.OST.STATAIX.DA)) -
+      INDEX -
+        (NAME(PKISRVD.VSAM.OST.STATAIX.IX))
+    DEFINE PATH -
+        (NAME(PKISRVD.VSAM.OST.STATUS) -
+         PATHENTRY(PKISRVD.VSAM.OST.STATAIX))
+    DEFINE ALTERNATEINDEX -
+       (NAME(PKISRVD.VSAM.ICL.STATAIX) -
+        RELATE(PKISRVD.VSAM.ICL)-
+        VOL(USER00) -
+        TRK(5,1) -
+        KEYS(40 4) ) -
+      DATA -
+        (NAME(PKISRVD.VSAM.ICL.STATAIX.DA)) -
+      INDEX -
+        (NAME(PKISRVD.VSAM.ICL.STATAIX.IX))
+    DEFINE PATH -
+        (NAME(PKISRVD.VSAM.ICL.STATUS) -
+         PATHENTRY(PKISRVD.VSAM.ICL.STATAIX))
+    DEFINE ALTERNATEINDEX -
+       (NAME(PKISRVD.VSAM.OST.REQAIX) -
+        RELATE(PKISRVD.VSAM.OST)-
+        VOL(USER00) -
+        TRK(5,1) -
+        KEYS(32 12) ) -
+      DATA -
+        (NAME(PKISRVD.VSAM.OST.REQAIX.DA)) -
+      INDEX -
+        (NAME(PKISRVD.VSAM.OST.REQAIX.IX))
+    DEFINE PATH -
+        (NAME(PKISRVD.VSAM.OST.REQUESTR) -
+         PATHENTRY(PKISRVD.VSAM.OST.REQAIX))
+    DEFINE ALTERNATEINDEX -
+       (NAME(PKISRVD.VSAM.ICL.REQAIX) -
+        RELATE(PKISRVD.VSAM.ICL)-
+        VOL(USER00) -
+        TRK(5,1) -
+        KEYS(32 12) ) -
+      DATA -
+        (NAME(PKISRVD.VSAM.ICL.REQAIX.DA)) -
+      INDEX -
+        (NAME(PKISRVD.VSAM.ICL.REQAIX.IX))
+    DEFINE PATH -
+        (NAME(PKISRVD.VSAM.ICL.REQUESTR) -
+         PATHENTRY(PKISRVD.VSAM.ICL.REQAIX))
+/*
+//*-------------------------------------------------------------------*
+//* BUILD ALTERNATE INDEX                                             *
+//*-------------------------------------------------------------------*
+//BLDINDEX EXEC PGM=IDCAMS
+//SYSPRINT DD   SYSOUT=*
+//SYSIN    DD   *
+    BLDINDEX INDATASET(PKISRVD.VSAM.OST) -
+        OUTDATASET(PKISRVD.VSAM.OST.AIX)
+    BLDINDEX INDATASET(PKISRVD.VSAM.OST) -
+        OUTDATASET(PKISRVD.VSAM.OST.STATAIX)
+    BLDINDEX INDATASET(PKISRVD.VSAM.ICL) -
+        OUTDATASET(PKISRVD.VSAM.ICL.STATAIX)
+    BLDINDEX INDATASET(PKISRVD.VSAM.OST) -
+        OUTDATASET(PKISRVD.VSAM.OST.REQAIX)
+    BLDINDEX INDATASET(PKISRVD.VSAM.ICL) -
+        OUTDATASET(PKISRVD.VSAM.ICL.REQAIX)
+/*
+//*-------------------------------------------------------------------*
+//* Print out the cluster                                             *
+//*-------------------------------------------------------------------*
+//PRTCLUST EXEC PGM=IDCAMS
+//SYSPRINT DD   SYSOUT=*
+//SYSIN    DD   *
+   PRINT -
+       INDATASET(PKISRVD.VSAM.OST) CHAR
+   PRINT -
+       INDATASET(PKISRVD.VSAM.ICL) CHAR
+/*
+

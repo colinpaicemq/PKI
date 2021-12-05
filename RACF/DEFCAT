@@ -1,0 +1,28 @@
+//IBMDF  JOB 1,MSGCLASS=H,RESTART=DEF
+//* Job to define a user catalog
+//* Change NAME and VOL
+//  EXPORT SYMLIST=*
+// SET VOL=A4USR1
+// SET NAME=A4USR1.ICFCAT2
+//DEL EXEC PGM=IDCAMS
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *,SYMBOLS=JCLONLY
+ DELETE -
+             &NAME    -
+             PURGE -
+             USERCATALOG
+//DEF EXEC PGM=IDCAMS
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *,SYMBOLS=JCLONLY
+ DEFINE USERCATALOG -
+      ( NAME('&NAME') -
+        MEGABYTES(15 15) -
+        VOLUME(&VOL) -
+        ICFCATALOG  -
+        FREESPACE(10 10) -
+        STRNO(3  ) ) -
+        DATA( CONTROLINTERVALSIZE(4096) -
+              BUFND(4) ) -
+        INDEX(BUFNI(4) )
+ LISTCAT ENTRIES('&NAME')  ALL
+/*
