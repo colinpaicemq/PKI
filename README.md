@@ -1,5 +1,5 @@
 # PKI
-PKI for certificate management on z/O
+PKI for certificate management on z/OS
 ## Summary
 The files here are to help people customise the PKI Server product from IBM.
 ##  RACF setup
@@ -17,7 +17,7 @@ You need to do this before you define the VSAM files.
 The members should be run in the following order
 
 ### DEFCAT - define a usercatalog
-If you are going to use the default HLQ (PKISERVE) for the VSAM datasets, you should set up an alias pointing to a user catalog.   This member gives an example job to define a user catalog
+If you are going to use the default HLQ (PKISERV) for the VSAM datasets, you should set up an alias pointing to a user catalog.   This member gives an example job to define a user catalog
 
 ### ALIAS - define an alias for the HLQ pointing to a user catalog
 This member is an example IDCAMS define alias command.
@@ -60,6 +60,9 @@ plus the setropts to refresh RACFLIST(...) for the resources changed.
 - Defines an RDATALIB profile for the keyring
 - Connects the web user certificate, and the Local CA certificate to the keyring
 - Exports the certificates
+
+### UNIX makes CSF* program protected
+This has been changed from the IBM definition.  It uses RALTER PROGRAM \*\* instead of RALTER PROGRAM \*, because with \*\* you can use RLIST PROGRAM \*\* to list just that category.  If you use RLIST PROGRAM \* it list all PROGRAM definitions.
 
 ## HTTPD  Web server configuration files.
 
